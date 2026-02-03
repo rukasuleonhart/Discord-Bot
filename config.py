@@ -21,4 +21,5 @@ FFMPEG_OPTIONS = {
 bot = commands.Bot(
     command_prefix= "$", 
     intents= INTENTS,
+    help_command=None
 )
