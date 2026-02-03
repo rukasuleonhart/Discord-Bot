@@ -3,13 +3,16 @@ from permissions import INTENTS
 
 # 📽️ yt-dlp
 YDL_OPTS = {
-    "js_runtimes": {"node": {}},
-    "remote_components": ["ejs:github"],
-    "noplaylist": True,
+    "js_runtimes": {"deno": {}},
+
+    # ✅ playlist estável
+    "extract_flat": "in_playlist",
+    "noplaylist": False,
+
+    # ✅ áudio
     "format": "bestaudio/best",
     "quiet": True,
     "default_search": "ytsearch",
-    "extract_flat": False,
 }
 
 # 📻 FFmpeg
