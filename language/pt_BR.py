@@ -1,4 +1,4 @@
-from command import cmd_tocar, cmd_pausar, cmd_continuar, cmd_pular, cmd_fila, cmd_remover
+from command import cmd_tocar, cmd_pausar, cmd_continuar, cmd_pular, cmd_fila, cmd_remover, cmd_agora, cmd_parar
 from discord.ext import commands
 
 def setup(bot: commands.Bot):
@@ -31,3 +31,13 @@ def setup(bot: commands.Bot):
     @bot.command(name="remover")
     async def remover(ctx: commands.Context, musica_id: int):
         await cmd_remover(ctx, musica_id)
+
+    # 🎙️ Agora
+    @bot.command(name="agora")
+    async def agora(ctx: commands.Context):
+        await cmd_agora(ctx)
+
+    # ⏹️ Parar
+    @bot.command(name="parar")
+    async def parar(ctx: commands.Context):
+        await cmd_parar(ctx)

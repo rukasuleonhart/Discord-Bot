@@ -8,7 +8,16 @@ from permissions import INTENTS
 # { guild_id: deque([(video_page_url, title)]) }
 queues: dict[int, deque[tuple[str, str]]] = {}
 
-bot = commands.Bot(command_prefix="$", intents=INTENTS)
+# { guild_id: {"title": str, "duration": int, "start": float} }
+now_playing: dict[int, dict] = {}
+
+# Formatando tempo
+def formatar_tempo(segundos: int) -> str:
+    m, s = divmod(int(segundos), 60)
+    h, m = divmod(m, 60)
+    if h:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
 
 # 🔍 Buscar (fila guarda URL da PÁGINA)
 def extrair_musica_sync(buscar: str) -> list[tuple[str, str]]:
@@ -40,11 +49,15 @@ async def extrair_musica(buscar: str) -> list[tuple[str, str]]:
 # ============================================================================================================
 # 🎧 Resolver stream (só na hora de tocar)                                                                  
 # ============================================================================================================
-def extrair_stream_sync(video_url: str) -> tuple[str, str]:
-    """Dada a URL da página do vídeo, retorna (stream_url_direta, title)."""
+def extrair_stream_sync(video_url: str) -> tuple[str, str, int]:
+    """Dada a URL da página do vídeo, retorna (stream_url_direta, title, duration_in_seconds)."""
     with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
         info = ydl.extract_info(video_url, download=False)
-        return info["url"], info.get("title", "Sem título")
+        return (
+            info["url"], 
+            info.get("title", "Sem título"),
+            info.get("duration", 0)
+        )
 
 async def extrair_stream(video_url: str) -> tuple[str, str]:
     return await asyncio.to_thread(extrair_stream_sync, video_url)
@@ -99,7 +112,13 @@ async def cmd_tocar(ctx: commands.Context, search: str):
         video_url, _ = queues[guild_id][0]
 
         try:
-            stream_url, _title_real = await extrair_stream(video_url)
+            stream_url, _title_real, duration = await extrair_stream(video_url)
+            now_playing[guild_id] = {
+                "title": _title_real,
+                "duration": duration,
+                "start": asyncio.get_event_loop().time()
+            }
+
             source = discord.FFmpegPCMAudio(stream_url, **FFMPEG_OPTIONS)
             voice_client.play(source, after=tocar_depois)
         except Exception as e:
@@ -114,6 +133,8 @@ async def cmd_tocar(ctx: commands.Context, search: str):
 
         if queues[guild_id]:
             queues[guild_id].popleft()
+        if not queues[guild_id]:
+            now_playing.pop(guild_id, None)
 
         # ✅ agenda a próxima música de forma thread-safe
         loop.call_soon_threadsafe(lambda: asyncio.create_task(tocar_na_proxima()))
@@ -279,3 +300,90 @@ async def cmd_remover(ctx: commands.Context, musica_id: int):
     queues[guild_id] = deque(fila_lista)
 
     await ctx.reply(f"🗑️ Removida da fila: **{title}** (ID {musica_id})")
+
+# ============================================================================================================
+# 🎙️ Tocando agora
+# ============================================================================================================
+async def cmd_agora(ctx: commands.Context):
+    guild_id = ctx.guild.id
+
+    if guild_id not in now_playing:
+        return await ctx.reply("⚠️ Nenhuma música tocando agora.")
+
+    data = now_playing[guild_id]
+
+    elapsed = asyncio.get_event_loop().time() - data["start"]
+    elapsed_fmt = formatar_tempo(elapsed)
+    total_fmt = formatar_tempo(data["duration"])
+
+    await ctx.reply(
+        f"🎵 **Tocando agora:** {data['title']}\n"
+        f"⏱️ {elapsed_fmt} / {total_fmt}"
+    )
+
+# ============================================================================================================
+# ⏹️ Parar reprodução
+# ============================================================================================================
+
+# Interface para desconectar o bot
+class ConfirmarDesconectarView(discord.ui.View):
+    def __init__(self, ctx: commands.Context):
+        super().__init__(timeout=30)
+        self.ctx = ctx
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.ctx.author.id:
+            await interaction.response.send_message(
+                "Apenas quem executou o comando pode usar.",
+                ephemeral=True
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="✅ Sim", style=discord.ButtonStyle.danger)
+    async def sim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.ctx.voice_client:
+            await self.ctx.voice_client.disconnect()
+
+        await interaction.response.edit_message(
+            content="👋 Desconectado do canal de voz.",
+            view=None
+        )
+
+    @discord.ui.button(label="❌ Não", style=discord.ButtonStyle.secondary)
+    async def nao(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="⏹️ Reprodução parada. Permanecendo no canal.",
+            view=None
+        )
+
+# Parar
+
+async def cmd_parar(ctx: commands.Context):
+    vc = ctx.voice_client
+    guild_id = ctx.guild.id
+
+    if not vc:
+        return await ctx.reply("⚠️ Não estou conectado em um canal de voz.")
+
+    if not vc.is_playing() and not vc.is_paused():
+        return await ctx.reply("⚠️ Não tem música tocando.")
+
+    # Para áudio
+    vc.stop()
+
+    # Limpa fila
+    if guild_id in queues:
+        queues[guild_id].clear()
+
+    now_playing.pop(guild_id, None)
+
+    view = ConfirmarDesconectarView(ctx)
+
+    await ctx.reply(
+        "⏹️ Música parada e fila limpa.\n"
+        "Deseja que eu desconecte do canal de voz?",
+        view=view
+    )
+
+

@@ -26,7 +26,8 @@ async def help(ctx):
             "`$pausar` - pausar a música atual\n"
             "`$continuar` - despausar\n"
             "`$pular` - pular para a próxima música e tirar a atual de fila\n"
-            "`$remover <id>` - remover uma música da fila pelo id"
+            "`$remover <id>` - remover uma música da fila pelo id\n"
+            "`$agora` - mostra a música atual\n"
             "`$fila` - exibir fila de músicas\n\n"
         ),
         inline=True  
@@ -40,7 +41,8 @@ async def help(ctx):
             "`$pause` – Pause the current song\n"
             "`$resume` – Resume playback\n"
             "`$skip` – Skip to the next song\n"
-            "`$remove <id>`"
+            "`$remove <id>` remove music by id\n"
+            "`$now` - show the music actualy\n"
             "`$queue` – Show the music queue\n"
         ),
         inline=False
