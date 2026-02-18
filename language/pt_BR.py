@@ -1,4 +1,7 @@
-from command import cmd_tocar, cmd_pausar, cmd_continuar, cmd_pular, cmd_fila, cmd_remover, cmd_agora, cmd_parar
+from command import (
+    cmd_tocar, cmd_pausar, cmd_continuar, cmd_pular, cmd_fila, cmd_remover, cmd_agora, cmd_parar, cmd_embaralhar, 
+    cmd_salvarfila, cmd_listarfila, cmd_carregarfila, cmd_removerfila
+    ) 
 from discord.ext import commands
 
 def setup(bot: commands.Bot):
@@ -41,3 +44,28 @@ def setup(bot: commands.Bot):
     @bot.command(name="parar")
     async def parar(ctx: commands.Context):
         await cmd_parar(ctx)
+
+    # 🃏 Embaralhar
+    @bot.command(name="embaralhar")
+    async def embaralhar(ctx: commands.Context):
+        await cmd_embaralhar(ctx)
+
+    # 💿 Salvar fila
+    @bot.command(name="salvarfila")
+    async def salvarfile(ctx: commands.Context, nome: str):
+        await cmd_salvarfila(ctx, nome)
+
+    # Listar fila
+    @bot.command(name="listarfila") 
+    async def listarfila(ctx: commands.Context):
+        await cmd_listarfila(ctx)
+
+    # carrega fila
+    @bot.command(name="carregarfila")
+    async def carregarfila(ctx: commands.Context, nome: str):
+        await cmd_carregarfila(ctx, nome)
+        
+    # remove fila
+    @bot.command(name="removerfila")
+    async def removerfila(ctx: commands.Context, nome: str):
+        await cmd_remover(ctx, nome)

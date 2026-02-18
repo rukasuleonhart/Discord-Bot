@@ -1,8 +1,7 @@
-import discord, yt_dlp, asyncio
+import discord, yt_dlp, asyncio, random, json, os
 from discord.ext import commands
 from collections import deque
 from config import YDL_OPTS, FFMPEG_OPTIONS
-from permissions import INTENTS
 
 # 🎶 FILA POR SERVIDOR
 # { guild_id: deque([(video_page_url, title)]) }
@@ -10,6 +9,12 @@ queues: dict[int, deque[tuple[str, str]]] = {}
 
 # { guild_id: {"title": str, "duration": int, "start": float} }
 now_playing: dict[int, dict] = {}
+
+
+# { guild_id: { "nome": [(video_url, title)] } }
+saved_queues: dict[int, dict[str, list[tuple[str, str]]]] = {}
+
+ARQUIVO_FILAS = "filas_salvas.json"
 
 # Formatando tempo
 def formatar_tempo(segundos: int) -> str:
@@ -386,4 +391,146 @@ async def cmd_parar(ctx: commands.Context):
         view=view
     )
 
+# ============================================================================================================
+# 🃏 Embaralhar fila
+# ============================================================================================================  
+
+async def cmd_embaralhar(ctx: commands.Context):
+    guild_id = ctx.guild.id
+
+    if guild_id not in queues or len(queues[guild_id]) <= 1:
+        return await ctx.reply("📪 Não há músicas suficientes na fila para embaralhar.")
+
+    fila = queues[guild_id]
+
+    # Se estiver tocando, preserva a primeira música
+    tocando = (
+        ctx.voice_client
+        and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused())
+    )
+
+    fila_lista = list(fila)
+
+    if tocando:
+        atual = fila_lista[0]
+        restante = fila_lista[1:]
+        random.shuffle(restante)
+        nova_fila = [atual] + restante
+    else:
+        random.shuffle(fila_lista)
+        nova_fila = fila_lista
+
+    queues[guild_id] = deque(nova_fila)
+
+    await ctx.reply("🃏 Fila embaralhada com sucesso.")
+
+# ============================================================================================================
+# 💾 PLAYLISTS SALVAS (PERSISTÊNCIA JSON)
+# ============================================================================================================  
+def salvar_filas_em_json():
+    data = {
+        str(guild_id): filas
+        for guild_id, filas in saved_queues.items()
+    }
+
+    with open(ARQUIVO_FILAS, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+def carregar_filas_do_json():
+    global saved_queues
+
+    if not os.path.exists(ARQUIVO_FILAS):
+        saved_queues = {}
+        return
+
+    with open(ARQUIVO_FILAS, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    saved_queues = {
+        int(guild_id): {
+            nome: [tuple(musica) for musica in fila]
+            for nome, fila in filas.items()
+        }
+        for guild_id, filas in data.items()
+    }
+
+# ============================================================================================================
+# 💿 Salvar Fila
+# ============================================================================================================  
+async def cmd_salvarfila(ctx: commands.Context, nome: str):
+    guild_id = ctx.guild.id
+    nome = nome.lower().strip()
+
+    if guild_id not in queues or not queues[guild_id]:
+        return await ctx.reply("📪 Não há músicas na fila para salvar.")
+
+    if len(nome) < 3:
+        return await ctx.reply("⚠️ O nome deve ter pelo menos 3 caracteres.")
+
+    if guild_id not in saved_queues:
+        saved_queues[guild_id] = {}
+
+    if nome in saved_queues[guild_id]:
+        return await ctx.reply("⚠️ Já existe uma fila com esse nome.")
+
+    saved_queues[guild_id][nome] = list(queues[guild_id])
+
+    salvar_filas_em_json()
+
+    await ctx.reply(f"💾 Fila `{nome}` salva com {len(queues[guild_id])} músicas.")
+
+# ============================================================================================================
+# 🔄️ Carrgar Fila
+# ============================================================================================================  
+async def cmd_carregarfila(ctx: commands.Context, nome: str):
+    guild_id = ctx.guild.id
+    nome = nome.lower().strip()
+
+    if guild_id not in saved_queues or nome not in saved_queues[guild_id]:
+        return await ctx.reply("❌ Fila não encontrada.")
+
+    if guild_id in queues and queues[guild_id]:
+        return await ctx.reply("⚠️ Já existe uma fila ativa. Use `$parar` antes.")
+
+    queues[guild_id] = deque(saved_queues[guild_id][nome])
+
+    await ctx.reply(
+        f"📂 Fila `{nome}` carregada com {len(queues[guild_id])} músicas."
+    )
+# ============================================================================================================
+# 📄 Listar Fila
+# ============================================================================================================  
+async def cmd_listarfila(ctx: commands.Context):
+    guild_id = ctx.guild.id
+
+    if guild_id not in saved_queues or not saved_queues[guild_id]:
+        return await ctx.reply("📂 Nenhuma fila salva neste servidor.")
+
+    msg = "📁 **Filas salvas:**\n"
+
+    for nome, fila in saved_queues[guild_id].items():
+        msg += f"- `{nome}` ({len(fila)} músicas)\n"
+
+    await ctx.reply(msg)
+
+# ============================================================================================================
+# 🗑️ Remover
+# ============================================================================================================ 
+async def cmd_removerfila(ctx: commands.Context, nome: str):
+    guild_id = ctx.guild.id
+    nome = nome.lower().strip()
+
+    if guild_id not in saved_queues or nome not in saved_queues[guild_id]:
+        return await ctx.reply("❌ Fila não encontrada.")
+
+    del saved_queues[guild_id][nome]
+
+    if not saved_queues[guild_id]:
+        del saved_queues[guild_id]
+
+    salvar_filas_em_json()
+
+    await ctx.reply(f"🗑️ Fila `{nome}` removida com sucesso.")
+  
 

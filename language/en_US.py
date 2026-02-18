@@ -1,5 +1,5 @@
 # ▶️ Play
-from command import cmd_tocar, cmd_pausar, cmd_continuar, cmd_pular, cmd_fila, cmd_remover, cmd_agora
+from command import cmd_tocar, cmd_pausar, cmd_continuar, cmd_pular, cmd_fila, cmd_remover, cmd_agora, cmd_parar, cmd_embaralhar
 from discord.ext import commands
 
 def setup(bot: commands.Bot):
@@ -33,7 +33,17 @@ def setup(bot: commands.Bot):
     async def remover(ctx: commands.Context, musica_id: int):
         await cmd_remover(ctx, musica_id)
     
-    # now
+    # 🎙️ Now
     @bot.command(name="now")
     async def now(ctx: commands.Context):
         await cmd_agora(ctx)
+
+    # ⏹️ Stop
+    @bot.command(name="stop")
+    async def stop(ctx: commands.Context):
+        await cmd_parar(ctx)
+
+    # 🃏 Random
+    @bot.command(name="random")
+    async def random(ctx: commands.Context):
+        await cmd_embaralhar(ctx)

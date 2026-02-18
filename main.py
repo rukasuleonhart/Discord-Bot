@@ -1,11 +1,14 @@
 from security import TOKEN
 from language import en_US, pt_BR
 from config import bot
+from command import carregar_filas_do_json
 import discord
 
 @bot.event
 async def on_ready():
     print("☑️ Bot inicializado com sucesso!")
+    carregar_filas_do_json()
+    print(f"Bot conectado como {bot.user}")
 
 en_US.setup(bot)
 pt_BR.setup(bot)
